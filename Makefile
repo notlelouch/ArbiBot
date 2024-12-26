@@ -3,16 +3,16 @@ BINARY_NAME=arbitage-build
 
 # Define the build targets for different operating systems
 build:
-	go build -o ${BINARY_NAME} .
+	GOARCH=amd64 GOOS=darwin go build -o bin/${BINARY_NAME} .
 
 # Target to run the application
 run: build
-	./${BINARY_NAME}
+	./bin/${BINARY_NAME}
 
 # Clean target
 clean:
 	go clean
-	rm -f ${BINARY_NAME}-linux ${BINARY_NAME}-darwin ${BINARY_NAME}-windows
+	rm -f bin/${BINARY_NAME}-linux bin/${BINARY_NAME}-darwin bin/${BINARY_NAME}-windows
 
 # Test target
 test:

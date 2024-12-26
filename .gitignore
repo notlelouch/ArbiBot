@@ -1,0 +1,40 @@
+# Go binary files
+/bin/*
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Build directory
+/obj/
+
+# Go workspace files
+*.test
+*.out
+
+# Dependency directories
+vendor/
+Gopkg.lock
+
+# Coverage reports
+*.cov
+coverage.out
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*~
+*.sublime-workspace
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Go modules cache
+go.sum
+
+# Other temporary files
+*.log
+
