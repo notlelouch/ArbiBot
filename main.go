@@ -10,29 +10,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// SubscriptionMessage represents the WebSocket subscription request
-type SubscriptionMessage struct {
-	Method       string       `json:"method"`
-	Subscription Subscription `json:"subscription"`
-}
-
-type Subscription struct {
-	Type string `json:"type"`
-	Coin string `json:"coin,omitempty"`
-}
-
-// WsTrade represents a trade from the trades feed
-type WsTrade struct {
-	Coin  string   `json:"coin"`
-	Side  string   `json:"side"`
-	Px    string   `json:"px"`
-	Sz    string   `json:"sz"`
-	Hash  string   `json:"hash"`
-	Time  int64    `json:"time"`
-	Tid   int64    `json:"tid"`
-	Users []string `json:"users"`
-}
-
 // WsResponse represents the WebSocket response
 type WsResponse struct {
 	Channel string          `json:"channel"`
@@ -87,6 +64,18 @@ func (h *HyperliquidWS) SubscribeToTrades(coin string) error {
 	return h.conn.WriteJSON(subscription)
 }
 
+func (h *HyperliquidWS) SubscribeToL2Book(coin string) error {
+	subscription := SubscriptionMessage{
+		Method: "subscribe",
+		Subscription: Subscription{
+			Type: "l2Book",
+			Coin: coin,
+		},
+	}
+
+	return h.conn.WriteJSON(subscription)
+}
+
 func (h *HyperliquidWS) handleMessages(ctx context.Context) {
 	for {
 		select {
@@ -116,6 +105,15 @@ func (h *HyperliquidWS) handleMessages(ctx context.Context) {
 				for _, trade := range trades {
 					log.Printf("Trade: %+v", trade)
 				}
+			case "l2Book":
+				var orderbook WsBook
+				if err := json.Unmarshal(response.Data, &orderbook); err != nil {
+					log.Printf("l2Book unmarshal error: %v", err)
+					continue
+				}
+				log.Printf("Order Book: %+v", orderbook)
+			default:
+				log.Printf("Unhandled channel: %s", response.Channel)
 			}
 		}
 	}
@@ -132,8 +130,13 @@ func main() {
 		log.Fatal("connection error:", err)
 	}
 
-	// Subscribe to SOL trades
-	if err := client.SubscribeToTrades("SOL"); err != nil {
+	// // Subscribe to SOL trades
+	// if err := client.SubscribeToTrades("SOL"); err != nil {
+	// 	log.Fatal("subscription error:", err)
+	// }
+
+	// Subscribe to SOL l2 order book
+	if err := client.SubscribeToL2Book("SOL"); err != nil {
 		log.Fatal("subscription error:", err)
 	}
 
