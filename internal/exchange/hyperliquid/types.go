@@ -1,4 +1,12 @@
-package main
+package hyperliquid
+
+import "encoding/json"
+
+// WsResponse represents the WebSocket response
+type WsResponse struct {
+	Channel string          `json:"channel"`
+	Data    json.RawMessage `json:"data"`
+}
 
 // SubscriptionMessage represents the WebSocket subscription request
 type SubscriptionMessage struct {
