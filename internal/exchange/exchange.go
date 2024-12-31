@@ -15,6 +15,7 @@ type OrderBook struct {
 }
 
 type Order struct {
-	Price  float64
-	Amount float64
+	Exchange string
+	Price    float64
+	Amount   float64
 }

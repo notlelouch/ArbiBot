@@ -7,15 +7,19 @@ import (
 	"fmt"
 	"log"
 	"notlelouch/ArbiBot/internal/exchange"
+	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
 )
 
 type HyperliquidWS struct {
-	handlers map[string]func([]byte)
-	conn     *websocket.Conn
-	url      string
+	handlers  map[string]func([]byte)
+	conn      *websocket.Conn
+	url       string
+	orderBook exchange.OrderBook
+	mu        sync.Mutex // Mutex to protect order book
 }
 
 func NewHyperliquidWS(mainnet bool) *HyperliquidWS {
@@ -24,8 +28,9 @@ func NewHyperliquidWS(mainnet bool) *HyperliquidWS {
 		url = "wss://api.hyperliquid.xyz/ws"
 	}
 	return &HyperliquidWS{
-		url:      url,
-		handlers: make(map[string]func([]byte)),
+		url:       url,
+		handlers:  make(map[string]func([]byte)),
+		orderBook: exchange.OrderBook{Bids: []exchange.Order{}, Asks: []exchange.Order{}},
 	}
 }
 
@@ -54,23 +59,9 @@ func (h *HyperliquidWS) SubscribeToOrderBook(coin string) error {
 }
 
 func (h *HyperliquidWS) GetOrderBook(coin string) (exchange.OrderBook, error) {
-	// Implement logic to fetch and return the order book
-	// // Fetch the order book in Hyperliquid's format (WsBook)
-	// var wsBook WsBook
-	// // Convert WsBook to the generic OrderBook
-	// var orderBook exchange.OrderBook
-	// for _, level := range wsBook.Levels[1] { // Bids
-	// 	price, _ := strconv.ParseFloat(level.Px, 64)
-	// 	amount, _ := strconv.ParseFloat(level.Sz, 64)
-	// 	orderBook.Bids = append(orderBook.Bids, exchange.Order{Price: price, Amount: amount})
-	// }
-	// for _, level := range wsBook.Levels[0] { // Asks
-	// 	price, _ := strconv.ParseFloat(level.Px, 64)
-	// 	amount, _ := strconv.ParseFloat(level.Sz, 64)
-	// 	orderBook.Asks = append(orderBook.Asks, exchange.Order{Price: price, Amount: amount})
-	// }
-	// return orderBook, nil
-	return exchange.OrderBook{}, nil
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.orderBook, nil
 }
 
 func (h *HyperliquidWS) handleMessages(ctx context.Context) {
@@ -96,7 +87,33 @@ func (h *HyperliquidWS) handleMessages(ctx context.Context) {
 					log.Printf("l2Book unmarshal error: %v", err)
 					continue
 				}
-				log.Printf("Order Book: %+v", orderbook)
+				// log.Printf("Hyperliquid Order Book Update: %+v", orderbook)
+
+				// Update local order book
+				h.mu.Lock()
+				h.orderBook.Bids = []exchange.Order{}
+				h.orderBook.Asks = []exchange.Order{}
+				for _, level := range orderbook.Levels[1] { // Bids
+					price, _ := strconv.ParseFloat(level.Px, 64)
+					amount, _ := strconv.ParseFloat(level.Sz, 64)
+					// h.orderBook.Bids = append(h.orderBook.Bids, exchange.Order{Price: price, Amount: amount})
+					h.orderBook.Asks = append(h.orderBook.Asks, exchange.Order{
+						Price:    price,
+						Amount:   amount,
+						Exchange: "Hyperliquid",
+					})
+				}
+				for _, level := range orderbook.Levels[0] { // Asks
+					price, _ := strconv.ParseFloat(level.Px, 64)
+					amount, _ := strconv.ParseFloat(level.Sz, 64)
+					// h.orderBook.Asks = append(h.orderBook.Asks, exchange.Order{Price: price, Amount: amount})
+					h.orderBook.Bids = append(h.orderBook.Bids, exchange.Order{
+						Price:    price,
+						Amount:   amount,
+						Exchange: "Hyperliquid",
+					})
+				}
+				h.mu.Unlock()
 			default:
 				log.Printf("Unhandled channel: %s", response.Channel)
 			}
