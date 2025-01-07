@@ -19,8 +19,20 @@ type KuCoinWS struct {
 	endpoint     string
 	token        string
 	orderBook    exchange.OrderBook
-	mu           sync.Mutex // Mutex to protect order book
+	mu           sync.RWMutex // Using RWMutex for better concurrency
 	pingInterval time.Duration
+}
+
+// Level2Depth5Message represents the structure for level2depth5 messages
+type Level2Depth5Message struct {
+	Type    string `json:"type"`
+	Topic   string `json:"topic"`
+	Subject string `json:"subject"`
+	Data    struct {
+		Asks      [][]string `json:"asks"`      // [price, size]
+		Bids      [][]string `json:"bids"`      // [price, size]
+		Timestamp int64      `json:"timestamp"` // milliseconds
+	} `json:"data"`
 }
 
 func NewKuCoinWS(tokenResp *TokenResponse) *KuCoinWS {
@@ -41,7 +53,8 @@ func (k *KuCoinWS) Connect(ctx context.Context) error {
 		return fmt.Errorf("WebSocket connection failed: %w", err)
 	}
 	k.conn = conn
-	log.Println("Successfully connected to KuCoin WebSocket") // Add logging
+	log.Println("Successfully connected to KuCoin WebSocket")
+
 	// Start ping loop
 	go k.pingLoop(ctx)
 
@@ -52,19 +65,19 @@ func (k *KuCoinWS) Connect(ctx context.Context) error {
 }
 
 func (k *KuCoinWS) SubscribeToOrderBook(coin string) error {
-	topic := "/market/level2:" + coin + "-USDT"
-	// return k.Subscribe(topic, false)
+	// Changed to use level2Depth5 topic
+	topic := fmt.Sprintf("/spotMarket/level2Depth5:%s-USDT", coin)
 	err := k.Subscribe(topic, false)
 	if err != nil {
 		return fmt.Errorf("failed to subscribe to KuCoin order book: %w", err)
 	}
-	log.Printf("Successfully subscribed to KuCoin order book for %s", coin) // Add logging
+	log.Printf("Successfully subscribed to KuCoin level2Depth5 for %s", coin)
 	return nil
 }
 
 func (k *KuCoinWS) GetOrderBook(coin string) (exchange.OrderBook, error) {
-	k.mu.Lock()
-	defer k.mu.Unlock()
+	k.mu.RLock() // Using read lock for better concurrency
+	defer k.mu.RUnlock()
 	return k.orderBook, nil
 }
 
@@ -94,54 +107,77 @@ func (k *KuCoinWS) handleMessages(ctx context.Context) {
 			_, message, err := k.conn.ReadMessage()
 			if err != nil {
 				log.Printf("KuCoin WebSocket read error: %v", err)
+				// Consider implementing reconnection logic here
 				return
+			}
+
+			// Try to parse as Level2Depth5Message
+			var l2Msg Level2Depth5Message
+			if err := json.Unmarshal(message, &l2Msg); err != nil {
+				// If it's not a level2depth5 message, it might be another type of message
+				continue
 			}
 			// log.Printf("KuCoin WebSocket message: %s", message)
 
-			var msg struct {
-				Topic string `json:"topic"`
-				Data  struct {
-					Changes struct {
-						Asks [][]string `json:"asks"`
-						Bids [][]string `json:"bids"`
-					} `json:"changes"`
-				} `json:"data"`
+			// Only process if it's a level2 message
+			if l2Msg.Subject == "level2" {
+				k.updateOrderBook(&l2Msg)
 			}
-			if err := json.Unmarshal(message, &msg); err != nil {
-				log.Printf("KuCoin WebSocket unmarshal error: %v", err)
-				continue
-			}
-
-			// Log the parsed message
-			// log.Printf("KuCoin Order Book Update - Asks: %v, Bids: %v", msg.Data.Changes.Asks, msg.Data.Changes.Bids)
-			// Update local order book
-
-			k.mu.Lock()
-
-			k.orderBook.Asks = []exchange.Order{} // Clear existing asks
-			k.orderBook.Bids = []exchange.Order{} // Clear existing bids
-
-			for _, ask := range msg.Data.Changes.Asks {
-				price, _ := strconv.ParseFloat(ask[0], 64)
-				size, _ := strconv.ParseFloat(ask[1], 64)
-				k.orderBook.Asks = append(k.orderBook.Asks, exchange.Order{
-					Price:    price,
-					Amount:   size,
-					Exchange: "KuCoin",
-				})
-			}
-			for _, bid := range msg.Data.Changes.Bids {
-				price, _ := strconv.ParseFloat(bid[0], 64)
-				size, _ := strconv.ParseFloat(bid[1], 64)
-				k.orderBook.Bids = append(k.orderBook.Asks, exchange.Order{
-					Price:    price,
-					Amount:   size,
-					Exchange: "KuCoin",
-				})
-			}
-			k.mu.Unlock()
 		}
 	}
+}
+
+func (k *KuCoinWS) updateOrderBook(msg *Level2Depth5Message) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	// Create new slices for bids and asks
+	newBids := make([]exchange.Order, 0, len(msg.Data.Bids))
+	newAsks := make([]exchange.Order, 0, len(msg.Data.Asks))
+
+	// Process bids
+	for _, bid := range msg.Data.Bids {
+		if len(bid) < 2 {
+			continue
+		}
+		price, err := strconv.ParseFloat(bid[0], 64)
+		if err != nil {
+			continue
+		}
+		size, err := strconv.ParseFloat(bid[1], 64)
+		if err != nil {
+			continue
+		}
+		newBids = append(newBids, exchange.Order{
+			Price:    price,
+			Amount:   size,
+			Exchange: "KuCoin",
+		})
+	}
+
+	// Process asks
+	for _, ask := range msg.Data.Asks {
+		if len(ask) < 2 {
+			continue
+		}
+		price, err := strconv.ParseFloat(ask[0], 64)
+		if err != nil {
+			continue
+		}
+		size, err := strconv.ParseFloat(ask[1], 64)
+		if err != nil {
+			continue
+		}
+		newAsks = append(newAsks, exchange.Order{
+			Price:    price,
+			Amount:   size,
+			Exchange: "KuCoin",
+		})
+	}
+
+	// Update the order book with new data
+	k.orderBook.Bids = newBids
+	k.orderBook.Asks = newAsks
 }
 
 func (k *KuCoinWS) Subscribe(topic string, privateChannel bool) error {

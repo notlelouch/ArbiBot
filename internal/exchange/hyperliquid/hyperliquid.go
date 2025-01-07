@@ -75,6 +75,7 @@ func (h *HyperliquidWS) handleMessages(ctx context.Context) {
 				log.Printf("read error: %v", err)
 				return
 			}
+			// log.Printf("Hyperliquid WebSocket message: %s", message)
 			var response WsResponse
 			if err := json.Unmarshal(message, &response); err != nil {
 				log.Printf("unmarshal error: %v", err)
