@@ -15,7 +15,7 @@ func FindBestPrices(exchanges []exchange.Exchange, coin string) (lowestAsk, high
 	// Fetch order books from all exchanges
 	for _, ex := range exchanges {
 		orderBook, err := ex.GetOrderBook(coin)
-		log.Printf("orderBook Bids: %v", orderBook.Bids) // Fixed logging
+		// log.Printf("orderBook Bids: %v", orderBook.Bids) // Fixed logging
 		if err != nil {
 			log.Printf("Error fetching order book from exchange: %v", err)
 			continue
@@ -49,6 +49,6 @@ func FindBestPrices(exchanges []exchange.Exchange, coin string) (lowestAsk, high
 		}
 	}
 
-	log.Printf("exiting the FindBestPrices function")
+	// log.Printf("exiting the FindBestPrices function")
 	return lowestAsk, highestBid, nil
 }

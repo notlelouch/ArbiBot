@@ -41,7 +41,7 @@ func (k *KuCoinWS) Connect(ctx context.Context) error {
 		return fmt.Errorf("WebSocket connection failed: %w", err)
 	}
 	k.conn = conn
-
+	log.Println("Successfully connected to KuCoin WebSocket") // Add logging
 	// Start ping loop
 	go k.pingLoop(ctx)
 
@@ -53,7 +53,13 @@ func (k *KuCoinWS) Connect(ctx context.Context) error {
 
 func (k *KuCoinWS) SubscribeToOrderBook(coin string) error {
 	topic := "/market/level2:" + coin + "-USDT"
-	return k.Subscribe(topic, false)
+	// return k.Subscribe(topic, false)
+	err := k.Subscribe(topic, false)
+	if err != nil {
+		return fmt.Errorf("failed to subscribe to KuCoin order book: %w", err)
+	}
+	log.Printf("Successfully subscribed to KuCoin order book for %s", coin) // Add logging
+	return nil
 }
 
 func (k *KuCoinWS) GetOrderBook(coin string) (exchange.OrderBook, error) {
@@ -106,8 +112,15 @@ func (k *KuCoinWS) handleMessages(ctx context.Context) {
 				continue
 			}
 
+			// Log the parsed message
+			// log.Printf("KuCoin Order Book Update - Asks: %v, Bids: %v", msg.Data.Changes.Asks, msg.Data.Changes.Bids)
 			// Update local order book
+
 			k.mu.Lock()
+
+			k.orderBook.Asks = []exchange.Order{} // Clear existing asks
+			k.orderBook.Bids = []exchange.Order{} // Clear existing bids
+
 			for _, ask := range msg.Data.Changes.Asks {
 				price, _ := strconv.ParseFloat(ask[0], 64)
 				size, _ := strconv.ParseFloat(ask[1], 64)
