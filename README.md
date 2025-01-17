@@ -1,6 +1,6 @@
 # ArbiBot: Cross-Exchange Arbitrage Bot
 
-ArbiBot is a high-performance, cross-exchange arbitrage bot designed to identify and capitalize on price discrepancies across multiple cryptocurrency exchanges. Built in Go, ArbiBot leverages WebSocket connections to provide real-time market data analysis, enabling users to execute arbitrage strategies with minimal latency.
+ArbiBot is a **work-in-progress**, high-performance, cross-exchange arbitrage bot designed to identify and capitalize on price discrepancies across multiple cryptocurrency exchanges. Built in Go, ArbiBot leverages WebSocket connections to provide real-time market data analysis, enabling users to execute arbitrage strategies with minimal latency. **Note: This project is still under active development, and some features may not be fully implemented yet.**
 
 ## Features
 
