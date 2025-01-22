@@ -9,11 +9,25 @@ import (
 	"notlelouch/ArbiBot/internal/exchange/kucoin"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 )
 
 func main() {
+	coins := []string{
+		"JUP",  // Jupiter
+		"JTO",  // Jito
+		"WIF",  // dogwifhat
+		"BONK", // Bonk
+		"MYRO", // Myro
+		"ORCA", // Orca
+		"RAY",  // Raydium
+		"HNT",  // Helium
+		"RNDR", // Render
+		"GMT",  // Stepn
+	}
+
 	// Create a context that can be canceled
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -45,49 +59,54 @@ func main() {
 		log.Fatalf("Failed to connect to KuCoin: %v", err)
 	}
 
-	// Subscribe to order books
-	coin := "SOL"
-	if err := hyperliquidClient.SubscribeToOrderBook(coin); err != nil {
-		log.Fatalf("Failed to subscribe to Hyperliquid order book: %v", err)
-	}
-	if err := kucoinClient.SubscribeToOrderBook(coin); err != nil {
-		log.Fatalf("Failed to subscribe to KuCoin order book: %v", err)
-	}
+	var wg sync.WaitGroup
+	for _, coin := range coins {
+		wg.Add(1)
+		go func() {
+			// Subscribe to order books
+			if err := hyperliquidClient.SubscribeToOrderBook(coin); err != nil {
+				log.Fatalf("Failed to subscribe to Hyperliquid order book: %v", err)
+			}
+			if err := kucoinClient.SubscribeToOrderBook(coin); err != nil {
+				log.Fatalf("Failed to subscribe to KuCoin order book: %v", err)
+			}
 
-	// Wait for order books to be populated
-	log.Println("Waiting for order book updates...")
-	time.Sleep(2 * time.Second) // Initial delay to populate order books
+			// Wait for order books to be populated
+			log.Println("Waiting for order book updates...")
+			time.Sleep(2 * time.Millisecond) // Initial delay to populate order books
+		}()
 
-	// Run arbitrage logic continuously in a goroutine
-	go func() {
-		exchanges := []exchange.Exchange{hyperliquidClient, kucoinClient}
-		ticker := time.NewTicker(2 * time.Second) // Check for arbitrage every 2 seconds
-		defer ticker.Stop()
+		// Run arbitrage logic continuously in a goroutine
+		go func() {
+			exchanges := []exchange.Exchange{hyperliquidClient, kucoinClient}
+			ticker := time.NewTicker(1 * time.Millisecond) // Check for arbitrage every 2 seconds
+			defer ticker.Stop()
 
-		for {
-			select {
-			case <-ctx.Done(): // Check if the context is canceled
-				log.Println("Exiting arbitrage loop...")
-				return
-			case <-ticker.C:
-				lowestAsk, highestBid, err := arbitrage.FindBestPrices(exchanges, coin)
-				if err != nil {
-					log.Printf("Error finding best prices: %v", err)
-					continue
-				}
+			for {
+				select {
+				case <-ctx.Done(): // Check if the context is canceled
+					log.Println("Exiting arbitrage loop...")
+					return
+				case <-ticker.C:
+					lowestAsk, highestBid, err := arbitrage.FindBestPrices(exchanges, coin)
+					if err != nil {
+						log.Printf("Error finding best prices: %v", err)
+						continue
+					}
 
-				log.Printf("Lowest Ask: %+v", lowestAsk)
-				log.Printf("Highest Bid: %+v", highestBid)
+					log.Printf("Lowest Ask: %+v", lowestAsk)
+					log.Printf("Highest Bid: %+v", highestBid)
 
-				// Check for arbitrage opportunity
-				if highestBid.Price > lowestAsk.Price {
-					log.Printf("Arbitrage Opportunity: Buy at %f (Exchange: %s), Sell at %f (Exchange: %s)",
-						lowestAsk.Price, lowestAsk.Exchange, highestBid.Price, highestBid.Exchange)
+					// Check for arbitrage opportunity
+					if highestBid.Price > lowestAsk.Price {
+						log.Printf("Arbitrage Opportunity: Buy %s at %f (Exchange: %s), Sell %s at %f (Exchange: %s)",
+							coin, lowestAsk.Price, lowestAsk.Exchange, coin, highestBid.Price, highestBid.Exchange)
+					}
 				}
 			}
-		}
-	}()
+		}()
 
+	}
 	// Keep the program running until the context is canceled
 	<-ctx.Done()
 	log.Println("Program exited gracefully.")

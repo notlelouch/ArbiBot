@@ -48,6 +48,8 @@ func (h *HyperliquidWS) Connect(ctx context.Context) error {
 }
 
 func (h *HyperliquidWS) SubscribeToOrderBook(coin string) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	subscription := SubscriptionMessage{
 		Method: "subscribe",
 		Subscription: Subscription{

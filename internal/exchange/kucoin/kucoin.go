@@ -65,6 +65,8 @@ func (k *KuCoinWS) Connect(ctx context.Context) error {
 }
 
 func (k *KuCoinWS) SubscribeToOrderBook(coin string) error {
+	k.mu.Lock()
+	defer k.mu.Unlock()
 	// Changed to use level2Depth5 topic
 	topic := fmt.Sprintf("/spotMarket/level2Depth5:%s-USDT", coin)
 	err := k.Subscribe(topic, false)
