@@ -8,6 +8,7 @@ import (
 	"log"
 	"notlelouch/ArbiBot/internal/exchange"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,11 +17,11 @@ import (
 
 type KuCoinWS struct {
 	conn         *websocket.Conn
+	orderBooks   map[string]exchange.OrderBook
 	endpoint     string
 	token        string
-	orderBook    exchange.OrderBook
-	mu           sync.RWMutex // Using RWMutex for better concurrency
 	pingInterval time.Duration
+	mu           sync.RWMutex
 }
 
 // Level2Depth5Message represents the structure for level2depth5 messages
@@ -40,7 +41,7 @@ func NewKuCoinWS(tokenResp *TokenResponse) *KuCoinWS {
 		endpoint:     tokenResp.Data.InstanceServers[0].Endpoint,
 		token:        tokenResp.Data.Token,
 		pingInterval: time.Duration(tokenResp.Data.InstanceServers[0].PingInterval) * time.Millisecond,
-		orderBook:    exchange.OrderBook{Bids: []exchange.Order{}, Asks: []exchange.Order{}},
+		orderBooks:   make(map[string]exchange.OrderBook), // Initialize map
 	}
 }
 
@@ -78,9 +79,14 @@ func (k *KuCoinWS) SubscribeToOrderBook(coin string) error {
 }
 
 func (k *KuCoinWS) GetOrderBook(coin string) (exchange.OrderBook, error) {
-	k.mu.RLock() // Using read lock for better concurrency
+	k.mu.RLock()
 	defer k.mu.RUnlock()
-	return k.orderBook, nil
+
+	orderBook, exists := k.orderBooks[coin]
+	if !exists {
+		return exchange.OrderBook{}, fmt.Errorf("no order book for %s", coin)
+	}
+	return orderBook, nil
 }
 
 func (k *KuCoinWS) pingLoop(ctx context.Context) {
@@ -137,6 +143,13 @@ func (k *KuCoinWS) updateOrderBook(msg *Level2Depth5Message) {
 	newBids := make([]exchange.Order, 0, len(msg.Data.Bids))
 	newAsks := make([]exchange.Order, 0, len(msg.Data.Asks))
 
+	// Extract coin from topic
+	parts := strings.Split(msg.Topic, ":")
+	if len(parts) != 2 {
+		return
+	}
+	coin := strings.TrimSuffix(parts[1], "-USDT")
+
 	// Process bids
 	for _, bid := range msg.Data.Bids {
 		if len(bid) < 2 {
@@ -177,9 +190,11 @@ func (k *KuCoinWS) updateOrderBook(msg *Level2Depth5Message) {
 		})
 	}
 
-	// Update the order book with new data
-	k.orderBook.Bids = newBids
-	k.orderBook.Asks = newAsks
+	// Update the specific coin's order book
+	k.orderBooks[coin] = exchange.OrderBook{
+		Bids: newBids,
+		Asks: newAsks,
+	}
 }
 
 func (k *KuCoinWS) Subscribe(topic string, privateChannel bool) error {
