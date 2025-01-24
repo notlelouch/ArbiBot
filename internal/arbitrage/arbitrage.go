@@ -3,7 +3,6 @@ package arbitrage
 
 import (
 	"fmt"
-	"log"
 	"notlelouch/ArbiBot/internal/exchange"
 )
 
@@ -17,7 +16,7 @@ func FindBestPrices(exchanges []exchange.Exchange, coin string) (lowestAsk, high
 		orderBook, err := ex.GetOrderBook(coin)
 		// log.Printf("orderBook Bids: %v", orderBook.Bids) // Fixed logging
 		if err != nil {
-			log.Printf("Error fetching order book from exchange: %v", err)
+			// log.Printf("Error fetching order book from exchange: %v", err)
 			continue
 		}
 
@@ -75,7 +74,7 @@ func FindBestPrices(exchanges []exchange.Exchange, coin string) (lowestAsk, high
 	}
 
 	if !foundValidPair {
-		return exchange.Order{}, exchange.Order{}, fmt.Errorf("no valid cross-exchange opportunities found")
+		// return exchange.Order{}, exchange.Order{}, fmt.Errorf("no valid cross-exchange opportunities found")
 	}
 
 	return lowestAsk, highestBid, nil
