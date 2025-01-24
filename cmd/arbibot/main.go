@@ -70,13 +70,13 @@ func main() {
 
 			// Wait for order books to be populated
 			log.Println("Waiting for order book updates...")
-			time.Sleep(5 * time.Second) // Initial delay to populate order books
+			time.Sleep(2000 * time.Millisecond) // Initial delay to populate order books
 		}(currentCoin)
 
 		// Run arbitrage logic continuously in a goroutine
 		go func(symbol string) {
 			exchanges := []exchange.Exchange{hyperliquidClient, kucoinClient}
-			ticker := time.NewTicker(500 * time.Millisecond) // Check for arbitrage every 2 seconds
+			ticker := time.NewTicker(100 * time.Millisecond) // Check for arbitrage every 2 seconds
 			defer ticker.Stop()
 
 			for {
@@ -91,8 +91,8 @@ func main() {
 						continue
 					}
 
-					log.Printf("Lowest Ask: %+v", lowestAsk)
-					log.Printf("Highest Bid: %+v", highestBid)
+					// log.Printf("Lowest Ask: %+v", lowestAsk)
+					// log.Printf("Highest Bid: %+v", highestBid)
 
 					// Check for arbitrage opportunity
 					if highestBid.Price > lowestAsk.Price {

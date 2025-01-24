@@ -36,19 +36,22 @@ func FindBestPrices(exchanges []exchange.Exchange, coin string) (lowestAsk, high
 	}
 
 	highestBid = bestBids[0]
+	lowestAsk = bestAsks[0]
+
+	// the below approach sometimes leads to same exchange arbitrage opportunities
 	// for _, bid := range bestBids {
 	// 	if bid.Price > highestBid.Price {
 	// 		highestBid = bid
 	// 	}
 	// }
 
-	lowestAsk = bestAsks[0]
 	// for _, ask := range bestAsks {
 	// 	if ask.Price < lowestAsk.Price {
 	// 		lowestAsk = ask
 	// 	}
 	// }
 
+	// Eliminating the same exchange arbitrage entirely
 	foundValidPair := false
 
 	for _, bid := range bestBids {
@@ -75,16 +78,11 @@ func FindBestPrices(exchanges []exchange.Exchange, coin string) (lowestAsk, high
 		return exchange.Order{}, exchange.Order{}, fmt.Errorf("no valid cross-exchange opportunities found")
 	}
 
-	// for _, bid := range bestBids {
-	// 	for _, ask := range bestAsks {
-	// 		if bid.Exchange != ask.Exchange && bid.Price > highestBid.Price {
-	// 			highestBid = bid
-	// 		}
-	// 		if bid.Exchange != ask.Exchange && ask.Price < lowestAsk.Price {
-	// 			lowestAsk = ask
-	// 		}
-	// 	}
-	// }
-	// log.Printf("exiting the FindBestPrices function")
 	return lowestAsk, highestBid, nil
+}
+
+func CalculateNetProfit(ask, bid float64) float64 {
+	tradeFee := 0.001 // Considering 0.1 per trade
+	netProfit := (bid - ask) * (1 - tradeFee)
+	return netProfit
 }

@@ -95,7 +95,7 @@ func (k *KuCoinWS) GetOrderBook(coin string) (exchange.OrderBook, error) {
 	}
 
 	// Check if data is stale (older than 5 seconds)
-	if time.Since(orderBookData.timeStamp) > 5*time.Second {
+	if time.Since(orderBookData.timeStamp) > 2000*time.Millisecond {
 		return exchange.OrderBook{}, fmt.Errorf("stale order book for %s", coin)
 	}
 	return orderBookData.book, nil
