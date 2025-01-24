@@ -80,8 +80,9 @@ func FindBestPrices(exchanges []exchange.Exchange, coin string) (lowestAsk, high
 	return lowestAsk, highestBid, nil
 }
 
-func CalculateNetProfit(ask, bid float64) float64 {
+func CalculateNetProfitPercentage(ask, bid float64) float64 {
 	tradeFee := 0.001 // Considering 0.1 per trade
 	netProfit := (bid - ask) * (1 - tradeFee)
-	return netProfit
+	netProfitPercentage := (netProfit / ask) * 100
+	return netProfitPercentage
 }

@@ -15,11 +15,13 @@ import (
 	"time"
 
 	"github.com/mum4k/termdash"
+	"github.com/mum4k/termdash/cell"
 	"github.com/mum4k/termdash/container"
 	"github.com/mum4k/termdash/container/grid"
 	"github.com/mum4k/termdash/linestyle"
 	"github.com/mum4k/termdash/terminal/tcell"
 	"github.com/mum4k/termdash/terminal/terminalapi"
+	"github.com/mum4k/termdash/widgets/barchart"
 	"github.com/mum4k/termdash/widgets/text"
 )
 
@@ -30,11 +32,7 @@ const (
 func main() {
 	// Define the list of coins to monitor
 	coins := []string{
-		"SOL",
-		"WIF",
-		"DOGE",
-		"JUP",
-		"GMT",
+		"SOL", "ATOM", "BTC", "APT", "ETH",
 	}
 
 	// Create a context that can be canceled
@@ -57,7 +55,7 @@ func main() {
 	}
 	defer t.Close()
 
-	// Create a map to hold text widgets for each coin
+	// Create widgets for each coin
 	coinWidgets := make(map[string]*text.Text)
 	for _, coin := range coins {
 		widget, err := text.New(text.RollContent(), text.WrapAtWords())
@@ -67,19 +65,68 @@ func main() {
 		coinWidgets[coin] = widget
 	}
 
-	// Create a grid layout with one cell per coin
+	// Create bar chart for profits
+	barChart, err := barchart.New(
+		barchart.BarColors([]cell.Color{
+			cell.ColorGreen,
+			cell.ColorBlue,
+			cell.ColorCyan,
+			cell.ColorMagenta,
+			cell.ColorYellow,
+		}),
+		barchart.ShowValues(),
+		barchart.Labels(coins),
+	)
+	if err != nil {
+		log.Fatalf("Failed to create bar chart: %v", err)
+	}
+
+	// Sync mechanism for updating bar chart
+	profitsMutex := &sync.Mutex{}
+	profits := make(map[string]float64)
+
+	// Create a grid layout with one cell per coin and a bar chart
 	builder := grid.New()
-	for _, coin := range coins {
-		builder.Add(
-			grid.RowHeightPerc(20, // Each row takes 20% of the screen height
-				grid.Widget(
-					coinWidgets[coin],
+	builder.Add(
+		grid.RowHeightPerc(25,
+			grid.ColWidthPerc(20,
+				grid.Widget(coinWidgets["SOL"],
 					container.Border(linestyle.Light),
-					container.BorderTitle(fmt.Sprintf(" %s Arbitrage Opportunities ", coin)),
+					container.BorderTitle(" SOL Arbitrage "),
 				),
 			),
-		)
-	}
+			grid.ColWidthPerc(20,
+				grid.Widget(coinWidgets["ATOM"],
+					container.Border(linestyle.Light),
+					container.BorderTitle(" ATOM Arbitrage "),
+				),
+			),
+			grid.ColWidthPerc(20,
+				grid.Widget(coinWidgets["BTC"],
+					container.Border(linestyle.Light),
+					container.BorderTitle(" BTC Arbitrage "),
+				),
+			),
+			grid.ColWidthPerc(20,
+				grid.Widget(coinWidgets["APT"],
+					container.Border(linestyle.Light),
+					container.BorderTitle(" APT Arbitrage "),
+				),
+			),
+			grid.ColWidthPerc(20,
+				grid.Widget(coinWidgets["ETH"],
+					container.Border(linestyle.Light),
+					container.BorderTitle(" ETH Arbitrage "),
+				),
+			),
+		),
+		grid.RowHeightPerc(75,
+			grid.Widget(barChart,
+				container.Border(linestyle.Light),
+				container.BorderTitle(" Arbitrage Profits "),
+			),
+		),
+	)
 
 	// Build the grid layout
 	gridOpts, err := builder.Build()
@@ -146,22 +193,39 @@ func main() {
 						continue
 					}
 
-					// Check for arbitrage opportunity
+					// Calculate arbitrage profit
+					profit := 0.0
 					if highestBid.Price > lowestAsk.Price {
+						profit = arbitrage.CalculateNetProfitPercentage(lowestAsk.Price, highestBid.Price)
+
+						// Update coin-specific widget
 						coinWidgets[symbol].Reset()
 						coinWidgets[symbol].Write(fmt.Sprintf(`
 Buy Exchange: %s
 Buy Price:    $%.8f
 Sell Exchange: %s
 Sell Price:    $%.8f
-Profit:        $%.4f
+Profit:        %.4f%%
 Time:          %s
 `,
 							lowestAsk.Exchange, lowestAsk.Price,
 							highestBid.Exchange, highestBid.Price,
-							highestBid.Price-lowestAsk.Price,
+							profit,
 							time.Now().Format("15:04:05"),
 						))
+
+						// Update profits for bar chart
+						profitsMutex.Lock()
+						profits[symbol] = profit
+
+						// Prepare bar chart data
+						barData := make([]int, len(coins))
+						for i, coin := range coins {
+							barData[i] = int(profits[coin] * 20000) // Scale for visibility
+						}
+
+						barChart.Values(barData, 1000) // Set the scale to 2000 for visibility
+						profitsMutex.Unlock()
 					}
 				case <-ctx.Done():
 					return
