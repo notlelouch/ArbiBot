@@ -17,9 +17,12 @@ import (
 type HyperliquidWS struct {
 	handlers   map[string]func([]byte)
 	conn       *websocket.Conn
-	orderBooks map[string]exchange.OrderBook
-	url        string
-	mu         sync.RWMutex
+	orderBooks map[string]*struct {
+		timeStamp time.Time
+		book      exchange.OrderBook
+	}
+	url string
+	mu  sync.RWMutex
 }
 
 func NewHyperliquidWS(mainnet bool) *HyperliquidWS {
@@ -28,9 +31,12 @@ func NewHyperliquidWS(mainnet bool) *HyperliquidWS {
 		url = "wss://api.hyperliquid.xyz/ws"
 	}
 	return &HyperliquidWS{
-		url:        url,
-		handlers:   make(map[string]func([]byte)),
-		orderBooks: make(map[string]exchange.OrderBook),
+		url:      url,
+		handlers: make(map[string]func([]byte)),
+		orderBooks: make(map[string]*struct {
+			timeStamp time.Time
+			book      exchange.OrderBook
+		}),
 	}
 }
 
@@ -64,11 +70,16 @@ func (h *HyperliquidWS) GetOrderBook(coin string) (exchange.OrderBook, error) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	orderBook, exists := h.orderBooks[coin]
+	orderBookData, exists := h.orderBooks[coin]
 	if !exists {
 		return exchange.OrderBook{}, fmt.Errorf("no order book for %s", coin)
 	}
-	return orderBook, nil
+
+	// Check if data is stale (older than 5 seconds)
+	if time.Since(orderBookData.timeStamp) > 10000*time.Millisecond {
+		return exchange.OrderBook{}, fmt.Errorf("stale order book for %s", coin)
+	}
+	return orderBookData.book, nil
 }
 
 func (h *HyperliquidWS) handleMessages(ctx context.Context) {
@@ -100,7 +111,13 @@ func (h *HyperliquidWS) handleMessages(ctx context.Context) {
 				// Initialize or clear the orderbook for this coin
 				coin := orderbook.Coin // Assuming this field exists in WsBook
 				if _, exists := h.orderBooks[coin]; !exists {
-					h.orderBooks[coin] = exchange.OrderBook{}
+					h.orderBooks[coin] = &struct {
+						timeStamp time.Time
+						book      exchange.OrderBook
+					}{
+						book:      exchange.OrderBook{},
+						timeStamp: time.Now(),
+					}
 				}
 
 				newBook := exchange.OrderBook{
@@ -128,7 +145,8 @@ func (h *HyperliquidWS) handleMessages(ctx context.Context) {
 					})
 				}
 
-				h.orderBooks[coin] = newBook
+				h.orderBooks[coin].book = newBook
+				h.orderBooks[coin].timeStamp = time.Now()
 				h.mu.Unlock()
 			default:
 				log.Printf("Unhandled channel: %s", response.Channel)

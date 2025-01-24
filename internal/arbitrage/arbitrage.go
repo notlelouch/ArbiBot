@@ -30,25 +30,61 @@ func FindBestPrices(exchanges []exchange.Exchange, coin string) (lowestAsk, high
 		}
 	}
 
-	// Find the highest bid and lowest ask across all exchanges
+	// Find the highest bid and lowest ask across all the different exchanges
 	if len(bestBids) == 0 || len(bestAsks) == 0 {
 		return exchange.Order{}, exchange.Order{}, fmt.Errorf("no bids or asks found")
 	}
 
 	highestBid = bestBids[0]
-	for _, bid := range bestBids {
-		if bid.Price > highestBid.Price {
-			highestBid = bid
-		}
-	}
+	// for _, bid := range bestBids {
+	// 	if bid.Price > highestBid.Price {
+	// 		highestBid = bid
+	// 	}
+	// }
 
 	lowestAsk = bestAsks[0]
-	for _, ask := range bestAsks {
-		if ask.Price < lowestAsk.Price {
-			lowestAsk = ask
+	// for _, ask := range bestAsks {
+	// 	if ask.Price < lowestAsk.Price {
+	// 		lowestAsk = ask
+	// 	}
+	// }
+
+	foundValidPair := false
+
+	for _, bid := range bestBids {
+		for _, ask := range bestAsks {
+			if bid.Exchange == ask.Exchange {
+				continue
+			}
+
+			// Update highest bid if higher and from different exchange than current lowest ask
+			if bid.Exchange != lowestAsk.Exchange && bid.Price > highestBid.Price {
+				highestBid = bid
+				foundValidPair = true
+			}
+
+			// Update lowest ask if lower and from different exchange than current highest bid
+			if ask.Exchange != highestBid.Exchange && ask.Price < lowestAsk.Price {
+				lowestAsk = ask
+				foundValidPair = true
+			}
 		}
 	}
 
+	if !foundValidPair {
+		return exchange.Order{}, exchange.Order{}, fmt.Errorf("no valid cross-exchange opportunities found")
+	}
+
+	// for _, bid := range bestBids {
+	// 	for _, ask := range bestAsks {
+	// 		if bid.Exchange != ask.Exchange && bid.Price > highestBid.Price {
+	// 			highestBid = bid
+	// 		}
+	// 		if bid.Exchange != ask.Exchange && ask.Price < lowestAsk.Price {
+	// 			lowestAsk = ask
+	// 		}
+	// 	}
+	// }
 	// log.Printf("exiting the FindBestPrices function")
 	return lowestAsk, highestBid, nil
 }

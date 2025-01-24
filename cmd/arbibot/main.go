@@ -61,25 +61,26 @@ func main() {
 
 	var wg sync.WaitGroup
 	for _, coin := range coins {
+		currentCoin := coin
 		wg.Add(1)
-		go func() {
+		go func(symbol string) {
 			// Subscribe to order books
-			if err := hyperliquidClient.SubscribeToOrderBook(coin); err != nil {
+			if err := hyperliquidClient.SubscribeToOrderBook(symbol); err != nil {
 				log.Fatalf("Failed to subscribe to Hyperliquid order book: %v", err)
 			}
-			if err := kucoinClient.SubscribeToOrderBook(coin); err != nil {
+			if err := kucoinClient.SubscribeToOrderBook(symbol); err != nil {
 				log.Fatalf("Failed to subscribe to KuCoin order book: %v", err)
 			}
 
 			// Wait for order books to be populated
 			log.Println("Waiting for order book updates...")
-			time.Sleep(2 * time.Millisecond) // Initial delay to populate order books
-		}()
+			time.Sleep(5 * time.Second) // Initial delay to populate order books
+		}(currentCoin)
 
 		// Run arbitrage logic continuously in a goroutine
-		go func() {
+		go func(symbol string) {
 			exchanges := []exchange.Exchange{hyperliquidClient, kucoinClient}
-			ticker := time.NewTicker(1 * time.Millisecond) // Check for arbitrage every 2 seconds
+			ticker := time.NewTicker(500 * time.Millisecond) // Check for arbitrage every 2 seconds
 			defer ticker.Stop()
 
 			for {
@@ -88,7 +89,7 @@ func main() {
 					log.Println("Exiting arbitrage loop...")
 					return
 				case <-ticker.C:
-					lowestAsk, highestBid, err := arbitrage.FindBestPrices(exchanges, coin)
+					lowestAsk, highestBid, err := arbitrage.FindBestPrices(exchanges, symbol)
 					if err != nil {
 						log.Printf("Error finding best prices: %v", err)
 						continue
@@ -100,11 +101,11 @@ func main() {
 					// Check for arbitrage opportunity
 					if highestBid.Price > lowestAsk.Price {
 						log.Printf("Arbitrage Opportunity: Buy %s at %f (Exchange: %s), Sell %s at %f (Exchange: %s)",
-							coin, lowestAsk.Price, lowestAsk.Exchange, coin, highestBid.Price, highestBid.Exchange)
+							symbol, lowestAsk.Price, lowestAsk.Exchange, symbol, highestBid.Price, highestBid.Exchange)
 					}
 				}
 			}
-		}()
+		}(currentCoin)
 
 	}
 	// Keep the program running until the context is canceled

@@ -16,8 +16,12 @@ import (
 )
 
 type KuCoinWS struct {
-	conn         *websocket.Conn
-	orderBooks   map[string]exchange.OrderBook
+	conn       *websocket.Conn
+	orderBooks map[string]*struct {
+		timeStamp time.Time
+		book      exchange.OrderBook
+	}
+
 	endpoint     string
 	token        string
 	pingInterval time.Duration
@@ -41,7 +45,10 @@ func NewKuCoinWS(tokenResp *TokenResponse) *KuCoinWS {
 		endpoint:     tokenResp.Data.InstanceServers[0].Endpoint,
 		token:        tokenResp.Data.Token,
 		pingInterval: time.Duration(tokenResp.Data.InstanceServers[0].PingInterval) * time.Millisecond,
-		orderBooks:   make(map[string]exchange.OrderBook), // Initialize map
+		orderBooks: make(map[string]*struct {
+			timeStamp time.Time
+			book      exchange.OrderBook
+		}),
 	}
 }
 
@@ -82,11 +89,16 @@ func (k *KuCoinWS) GetOrderBook(coin string) (exchange.OrderBook, error) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 
-	orderBook, exists := k.orderBooks[coin]
+	orderBookData, exists := k.orderBooks[coin]
 	if !exists {
 		return exchange.OrderBook{}, fmt.Errorf("no order book for %s", coin)
 	}
-	return orderBook, nil
+
+	// Check if data is stale (older than 5 seconds)
+	if time.Since(orderBookData.timeStamp) > 5*time.Second {
+		return exchange.OrderBook{}, fmt.Errorf("stale order book for %s", coin)
+	}
+	return orderBookData.book, nil
 }
 
 func (k *KuCoinWS) pingLoop(ctx context.Context) {
@@ -139,16 +151,26 @@ func (k *KuCoinWS) updateOrderBook(msg *Level2Depth5Message) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
-	// Create new slices for bids and asks
-	newBids := make([]exchange.Order, 0, len(msg.Data.Bids))
-	newAsks := make([]exchange.Order, 0, len(msg.Data.Asks))
-
 	// Extract coin from topic
 	parts := strings.Split(msg.Topic, ":")
 	if len(parts) != 2 {
 		return
 	}
 	coin := strings.TrimSuffix(parts[1], "-USDT")
+
+	// Initialize the order book entry if it doesn't exist
+	if _, exists := k.orderBooks[coin]; !exists {
+		k.orderBooks[coin] = &struct {
+			timeStamp time.Time
+			book      exchange.OrderBook
+		}{
+			book:      exchange.OrderBook{},
+			timeStamp: time.Now(),
+		}
+	}
+	// Create new slices for bids and asks
+	newBids := make([]exchange.Order, 0, len(msg.Data.Bids))
+	newAsks := make([]exchange.Order, 0, len(msg.Data.Asks))
 
 	// Process bids
 	for _, bid := range msg.Data.Bids {
@@ -191,10 +213,12 @@ func (k *KuCoinWS) updateOrderBook(msg *Level2Depth5Message) {
 	}
 
 	// Update the specific coin's order book
-	k.orderBooks[coin] = exchange.OrderBook{
+	// Update with new timestamp
+	k.orderBooks[coin].book = exchange.OrderBook{
 		Bids: newBids,
 		Asks: newAsks,
 	}
+	k.orderBooks[coin].timeStamp = time.Now()
 }
 
 func (k *KuCoinWS) Subscribe(topic string, privateChannel bool) error {
