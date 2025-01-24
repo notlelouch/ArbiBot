@@ -16,16 +16,12 @@ import (
 
 func main() {
 	coins := []string{
-		"JUP",  // Jupiter
-		"JTO",  // Jito
-		"WIF",  // dogwifhat
-		"BONK", // Bonk
-		"MYRO", // Myro
-		"ORCA", // Orca
-		"RAY",  // Raydium
-		"HNT",  // Helium
-		"RNDR", // Render
-		"GMT",  // Stepn
+		"SOL",
+		"WIF",
+		"DOGE",
+		"JUP",
+		"WIF", // dogwifhat
+		"GMT", // Stepn
 	}
 
 	// Create a context that can be canceled
