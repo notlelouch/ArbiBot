@@ -1,6 +1,12 @@
 # ArbiBot: Cross-Exchange Arbitrage Bot
 
-ArbiBot is a **work-in-progress**, high-performance, cross-exchange arbitrage bot designed to identify and capitalize on price discrepancies across multiple cryptocurrency exchanges. Built in Go, ArbiBot leverages WebSocket connections to provide real-time market data analysis, enabling users to execute arbitrage strategies with minimal latency. **Note: This project is still under active development, and some features may not be fully implemented yet.**
+ArbiBot is a high-performance, cross-exchange arbitrage bot designed to identify and capitalize on price discrepancies across multiple cryptocurrency exchanges. Built in Go, ArbiBot leverages WebSocket connections to provide real-time market data analysis, enabling users to execute arbitrage strategies with minimal latency. **Note: This project is still under active development**
+
+## Demo
+Below is a visual representation of ArbiBot in action, showcasing its real-time detection of arbitrage opportunities across various trading pairs:
+
+![ArbiBot Demo](assets/demo.gif)
+
 
 ## Features
 
@@ -35,30 +41,12 @@ ArbiBot is a **work-in-progress**, high-performance, cross-exchange arbitrage bo
    ```bash
    go mod download
     ```
-3. Build the bot:
-
-   ```bash
-   make build
-    ```
-### Configuration
-ArbiBot requires API keys for private exchanges. Set up your API keys in the environment variables or directly in the code.
-
-### Usage
-
-Run the bot:
+3. Build and Run the bot:
 
    ```bash
    make run
-  ```
-The bot will start monitoring the specified trading pairs and log any arbitrage opportunities it detects.
+    ```
+   The bot will start monitoring the specified trading pairs and log any arbitrage opportunities it detects.
 
-### Example Output
-
-  ``` bash
-  2023/10/01 12:00:00 Waiting for order book updates...
-  2023/10/01 12:00:02 Lowest Ask: {Price: 100.50, Amount: 1.0, Exchange: Hyperliquid}
-  2023/10/01 12:00:02 Highest Bid: {Price: 101.00, Amount: 1.0, Exchange: KuCoin}
-  2023/10/01 12:00:02 Arbitrage Opportunity: Buy at 100.50 (Exchange: Hyperliquid),     Sell at 101.00 (Exchange: KuCoin)
-  ```
 ### Contributing
 We welcome contributions! Please read our Contributing Guidelines for more information on how to get started.
