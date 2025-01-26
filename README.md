@@ -33,7 +33,7 @@ Below is a visual representation of ArbiBot in action, showcasing its real-time 
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/yourusername/ArbiBot.git
+   git clone https://github.com/notlelouch/ArbiBot.git
    cd ArbiBot
     ```
 2. Install dependencies:
